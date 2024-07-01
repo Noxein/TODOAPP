@@ -3,51 +3,106 @@ import { sql } from "@vercel/postgres";
 import { z } from "zod";
 import bcrypt from 'bcrypt'
 import { AuthError } from "next-auth";
-import { auth, signIn } from "@/auth";
+import { signIn, auth } from "./page/api/auth/[...nextauth]";
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { error } from "console";
 
-export async function addToDo(note:string){
-    try{
-      const userEmail = await auth()
-
-      const data = await sql`SELECT id FROM users WHERE email = ${userEmail?.user?.email};`;
-      const userID = data.rows[0].id
-      const todo = await sql`INSERT INTO todos (note,userid,status)
-       VALUES (${note}, ${userID}, false);`
-
-      return todo
-      
-      }catch(e){
-        console.log('err',e)
-        return {
-          message: 'Database Error: Failed to Update Invoice',
-          
-        }
-      }
-}
-
-export async function getTodos(){
-  try{
-    const user = await auth()
-    const userEmail = user?.user?.id
-    console.log('email',userEmail)
-    // sql`
-    //   SELECT * FROM todos
-    // `
-  }catch(e){
-
-  }
-}
-getTodos()
 export type State = {
   errors?: {
     login?: string[];
     password?: string[];
     confirmpassword?: string[],
     email?: string[],
+    todo?: string,
+    db?: string,
   };
   message?: string | null;
 } | null
+
+export async function addToDo(prevSate:State,formData:FormData){
+    try{
+      const todo = formData.get('todo') as string
+
+      const user = await auth()
+      const userID = user?.user?.id
+      const parsedValue = z.string().max(255,'Todo can be maximum 255 characters long').safeParse(todo)
+      if(!parsedValue.success){
+        return {
+          errors: {todo:'Todo can be maximum 255 characters long'},
+          message: 'Missing Fields'
+        }
+      }
+      await sql`INSERT INTO todos (note,userid,status)
+       VALUES (${todo}, ${userID}, false);`
+
+       revalidatePath('/home')
+
+      return {
+        message: 'Todo added succesfully',
+        errors:{todo:''}
+      }
+      
+      }catch(e){
+        console.log('err',e)
+        return {
+          message: 'Database Error: Failed to Update Invoice',
+          errors: {todo:''}
+        }
+      }
+}
+
+export async function deleteToDo(todoID: string,prevState: State,formData: FormData){
+  try{
+    await sql`
+      DELETE FROM todos WHERE id = ${todoID}
+    `
+    revalidatePath('/home')
+    return {
+      message: 'Succesfully deleted todo',
+      errors: {}
+    }
+  }catch(e){
+    console.log(e)
+    return {
+      message: "database error",
+      errors: {db: 'Couldnt delete todo'}
+    }
+  }
+}
+export async function getTodos(){
+  try{
+    const user = await auth()
+    const userID = user?.user?.id
+    const todos = await sql`
+      SELECT * FROM todos WHERE userid = ${userID}
+    `
+    
+    todos.rows.sort((a,b)=>{ if(a.id>b.id){return 1}else{return -1}})
+    return todos.rows as {id:string,note:string,userid:string,status:boolean}[]
+  }catch(e){
+
+  }
+}
+
+export async function updateToDo(todoID: string,todoStatus: boolean,prevState: State,formData: FormData){
+  try{
+    await sql`
+      UPDATE todos SET status = ${!todoStatus} WHERE id = ${todoID}
+    `
+    revalidatePath('/home')
+    return{
+      message: 'Succesfully updated todo',
+      errors: {}
+    }
+  }catch(e){
+    console.log(e)
+    return{
+      message: '',
+      errors: { db: 'Couldnt update todo'}
+    }
+  }
+}
 
 
 

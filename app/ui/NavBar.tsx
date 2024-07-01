@@ -1,6 +1,6 @@
 import React from 'react'
 import { getAuth, logCookie } from '../actions'
-import { signOut } from '@/auth'
+import { signOut } from '../page/api/auth/[...nextauth]'
 
 export const NavBar = async () => {
     const data = await getAuth()

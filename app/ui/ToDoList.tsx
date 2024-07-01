@@ -1,7 +1,8 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Todo } from './todo'
-import { addToDo } from '../actions'
+import { addToDo, getTodos } from '../actions'
+import { useFormState, useFormStatus } from 'react-dom'
 
 const initTodos = [
 {
@@ -17,32 +18,42 @@ const initTodos = [
 ]
 
 let currentNumber = 3
-export const ToDoList = () => {
-    const[todos,setTodos] = useState<{message:string,isCompleted:boolean,id:number}[]>(initTodos)
-    const[newTodo,setNewTodo] = useState<string>('')
+export const ToDoList = ({todos}:{todos:{id:string,note:string,userid:string,status:boolean}[]|undefined}) => {
+    const initState = {errors: { todo:'' },
+    message:  '',
+  }
+  const formRef = useRef<HTMLFormElement|null>(null)
+    const[state,dispatch] = useFormState(addToDo,initState)
+    
+    formRef.current?.reset()
 
-    const handleAddToDo = () => {
-        const todo = {
-            id:currentNumber,
-            message:newTodo,
-            isCompleted:false,
-        }
-        currentNumber ++
-        setTodos(x=>[...x,todo])
-        setNewTodo('')
-    }
   return (
     <div className='w-1/2 flex flex-col gap-1'>
-        {todos.map(todo=>(
-            <Todo key={todo.id} isCompleted={todo.isCompleted} message={todo.message} id={todo.id} setTodos={setTodos} todos={todos}/>
+        {todos && todos.map(todo=>(
+            <Todo key={todo.id} isCompleted={todo.status} message={todo.note} id={todo.id}/>
         ))}
-        <div className='flex'>
-            <input type="text" className='flex-1 text-black' value={newTodo} onChange={e=>setNewTodo(e.target.value)}/>
-            <button className='flex gap-2 text-black justify-center' onClick={()=>addToDo(newTodo)}>
-                Add ToDo
-            </button>
-        </div>
+
+        <form  action={dispatch} ref={formRef}>
+            <div className='flex'>
+                <input type="text" name='todo' className='flex-1 text-black'/>
+                <AddToDoButton/>
+            </div>
+
+            <div className='text-red-500'>
+                {state.errors && state.errors?.todo}
+            </div>
+            
+        </form>
 
     </div>
   )
+}
+
+const AddToDoButton = ({...rest}:React.DetailedHTMLProps<React.ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>) => {
+    const { pending } = useFormStatus()
+    return (
+        <button className='flex gap-2 text-black justify-center' type='submit' disabled={pending} {...rest}>
+        Add ToDo
+    </button>
+    )
 }
